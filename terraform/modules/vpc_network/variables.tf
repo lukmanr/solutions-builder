@@ -53,3 +53,9 @@ variable "secondary_ranges_services" {
     ip_cidr_range = string
   })
 }
+
+variable "use_existing_vpc" {
+  type        = bool
+  description = "Whether to use existing VPC"
+  default     = false
+}

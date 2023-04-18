@@ -15,13 +15,7 @@
  *
  */
 
-module "vpc" {
-  source       = "terraform-google-modules/network/google"
-  version      = "~> 5.0"
-  project_id   = var.project_id
-  network_name = var.vpc_network
-  routing_mode = "GLOBAL"
-
+locals {
   subnets = [
     {
       subnet_name               = var.vpc_subnetwork
@@ -41,5 +35,28 @@ module "vpc" {
       var.secondary_ranges_services,
     ]
   }
+}
 
+module "vpc" {
+  count = var.use_existing_vpc ? 0 : 1
+
+  source           = "terraform-google-modules/network/google"
+  version          = "~> 5.0"
+  project_id       = var.project_id
+  network_name     = var.vpc_network
+  routing_mode     = "GLOBAL"
+  subnets          = local.subnets
+  secondary_ranges = local.secondary_ranges
+
+}
+
+module "subnets" {
+  count = var.use_existing_vpc ? 1 : 0
+
+  source           = "terraform-google-modules/network/google"
+  version          = "~> 5.0"
+  project_id       = var.project_id
+  network_name     = module.vpc.network_name
+  subnets          = local.subnets
+  secondary_ranges = local.secondary_ranges
 }

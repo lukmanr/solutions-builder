@@ -38,6 +38,15 @@ variable "project_id" {
   }
 }
 
+variable "existing_vpc" {
+  description = "Use an existing VPC. However, subnet will always be newly created"
+  type = object({
+    network           = string
+    subnetwork        = string
+  })
+  default     = null
+}
+
 variable "vpc_network" {
   type    = string
   default = "default-vpc"

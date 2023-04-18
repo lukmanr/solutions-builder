@@ -34,8 +34,3 @@ variable "api_domain" {
   type        = string
   description = "API domain, excluding protocol. E.g. api.example.com"
 }
-
-variable "cors_allow_origin" {
-  type        = string
-  description = "CORS allow origins, comma-separated."
-}

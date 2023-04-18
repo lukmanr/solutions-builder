@@ -36,6 +36,10 @@ locals {
     "secretmanager.googleapis.com",        # Secret Manager
     "storage.googleapis.com",              # Cloud Storage
   ]
+
+  use_existing_vpc = var.existing_vpc != null ? true : false
+  vpc_network = (local.use_existing_vpc ? var.existing_vpc.network : var.vpc_network)
+  vpc_subnetwork = (local.use_existing_vpc ? var.existing_vpc.subnetwork : var.vpc_subnetwork)
 }
 
 data "google_project" "project" {}
@@ -63,13 +67,14 @@ module "firebase" {
 }
 
 module "vpc_network" {
+  depends_on                = [module.project_services]
   source                    = "../../modules/vpc_network"
   project_id                = var.project_id
-  vpc_network               = var.vpc_network
+  vpc_network               = local.vpc_network
+  vpc_subnetwork            = local.vpc_subnetwork
+  use_existing_vpc          = local.use_existing_vpc
   region                    = var.region
-  vpc_subnetwork            = var.vpc_subnetwork
   subnet_ip                 = var.ip_cidr_range
   secondary_ranges_pods     = var.secondary_ranges_pods
   secondary_ranges_services = var.secondary_ranges_services
 }
-
