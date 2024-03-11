@@ -19,11 +19,13 @@ import importlib.metadata
 from typing import Optional
 from typing_extensions import Annotated
 from copier import run_auto
-from .component import component_app
+from .component import component_app, info as components_info
 from .infra import infra_app
 from .template import template_app
-from .set import set_app
+from .set import set_app, project_id as set_project_id
+from .vars import vars_app
 from .cli_utils import *
+from .cli_constants import DEBUG, PLACEHOLDER_VALUES
 
 __version__ = importlib.metadata.version("solutions-builder")
 DEFAULT_DEPLOY_PROFILE = "default-deploy"
@@ -48,6 +50,9 @@ app.add_typer(template_app,
 app.add_typer(set_app,
               name="set",
               help="Set properties to an existing solution folder.")
+app.add_typer(vars_app,
+              name="vars",
+              help="Set variables in an existing solutions-builder folder.")
 
 
 # Create a new solution
@@ -122,20 +127,48 @@ def update(solution_path: Annotated[Optional[str],
 
 # Build and deploy services.
 @app.command()
-def deploy(profile: str = DEFAULT_DEPLOY_PROFILE,
-           component: str = None,
-           dev: Optional[bool] = False,
-           solution_path: Annotated[Optional[str],
-                                    typer.Argument()] = ".",
-           yes: Optional[bool] = False):
+def deploy(
+    profile: Annotated[str, typer.Option("--profile", "-p")] = DEFAULT_DEPLOY_PROFILE,
+    component: Annotated[str, typer.Option("--component", "-c", "-m")] = None,
+    namespace: Annotated[str, typer.Option("--namespace", "-n")] = None,
+    dev: Optional[bool] = False,
+    solution_path: Annotated[Optional[str],
+                            typer.Argument()] = ".",
+    skaffold_args: Optional[str] = "",
+    yes: Optional[bool] = False):
   """
   Build and deploy services.
   """
   validate_solution_folder(solution_path)
 
   sb_yaml = read_yaml(f"{solution_path}/sb.yaml")
-  project_id = sb_yaml["project_id"]
+  global_variables = sb_yaml.get("global_variables", {})
+
+  # Get project_id from sb.yaml.
+  project_id = global_variables.get("project_id", None)
+  assert project_id, "project_id is not set in 'global_variables' in sb.yaml."
+
+  # Check namespace
+  allow_deploy_without_namespace = sb_yaml.get("allow_deploy_without_namespace")
+  if allow_deploy_without_namespace in [None, False, ""] and not namespace:
+    assert namespace, "Please set namespace with --namespace or -n"
+
+  if project_id in PLACEHOLDER_VALUES:
+    project_id = None
+    while not project_id:
+      project_id = input("Please set the GCP project ID: ")
+    print()
+    set_project_id(project_id)
+
+    # Reload sb.yaml
+    sb_yaml = read_yaml(f"{solution_path}/sb.yaml")
+    global_variables = sb_yaml.get("global_variables", {})
+
+  # Get terraform_gke component settings.
   terraform_gke = sb_yaml["components"].get("terraform_gke")
+  env_vars = {
+    "PROJECT_ID": project_id,
+  }
   commands = []
 
   if component:
@@ -155,22 +188,43 @@ def deploy(profile: str = DEFAULT_DEPLOY_PROFILE,
         f"gcloud container clusters get-credentials {cluster_name} --region {region} --project {project_id}"
     )
 
+  # Set Skaffold namespace
+  namespace_flag = f"-n {namespace}" if namespace else ""
+
+  # Add skaffold command.
   commands.append(
-      f"{skaffold_command} -p {profile} {component_flag} --default-repo=\"gcr.io/{project_id}\""
+      f"{skaffold_command} -p {profile} {component_flag} {namespace_flag} --default-repo=\"gcr.io/{project_id}\" {skaffold_args}"
   )
-  print("This will build and deploy all services using the command below:")
+  print("This will build and deploy all services using the command "\
+        "and variables below:")
   for command in commands:
-    print_highlight(f"- {command}")
-  confirm("\nThis may take a few minutes. Continue?", skip=yes)
+    print_success(f"- {command}")
+
+  namespace_str = namespace or "default"
+  print("\nnamespace:")
+  print_success(f"- {namespace_str}")
+
+  print("\nenvironment variables:")
+  env_var_str = ""
+  for key, value in env_vars.items():
+    print_success(f"- {key}={value}")
+    env_var_str += f"{key}={value} "
+
+  print("\nglobal_variables in sb.yaml:")
+  for key, value in sb_yaml.get("global_variables", {}).items():
+    print_success(f"- {key}: {value}")
+
+  print()
+  confirm("This may take a few minutes. Continue?", skip=yes)
 
   for command in commands:
-    exec_shell(command, working_dir=solution_path)
-
+    exec_shell(env_var_str + command, working_dir=solution_path)
 
 # Destory deployment.
 @app.command()
 def delete(profile: str = DEFAULT_DEPLOY_PROFILE,
-           component: str = None,
+           component: Annotated[str, typer.Option("--component", "-c", "-m")] = None,
+           namespace: Annotated[str, typer.Option("--namespace", "-n")] = None,
            solution_path: Annotated[Optional[str],
                                     typer.Argument()] = ".",
            yes: Optional[bool] = False):
@@ -180,14 +234,21 @@ def delete(profile: str = DEFAULT_DEPLOY_PROFILE,
   validate_solution_folder(solution_path)
 
   sb_yaml = read_yaml(f"{solution_path}/sb.yaml")
-  project_id = sb_yaml["project_id"]
+  global_variables = sb_yaml.get("global_variables", {})
+
+  # Get project_id from sb.yaml.
+  project_id = global_variables.get("project_id", None)
+  assert project_id, "project_id is not set in 'global_variables' in sb.yaml."
 
   if component:
     component_flag = f" -m {component} "
   else:
     component_flag = ""
 
-  command = f"skaffold delete -p {profile} {component_flag} --default-repo=\"gcr.io/{project_id}\""
+  # Set Skaffold namespace
+  namespace_flag = f"-n {namespace}" if namespace else ""
+
+  command = f"skaffold delete -p {profile} {component_flag} {namespace_flag} --default-repo=\"gcr.io/{project_id}\""
   print("This will DELETE deployed services using the command below:")
   print_highlight(command)
   confirm("\nThis may take a few minutes. Continue?", default=False, skip=yes)
@@ -201,17 +262,16 @@ def info(solution_path: Annotated[Optional[str],
   Print info from ./sb.yaml.
   """
   sb_yaml = read_yaml(f"{solution_path}/sb.yaml")
-  print(f"Printing info of the solution folder at '{solution_path}'\n")
+  print(f"Printing info of the solution folder at '{solution_path}/'\n")
 
-  for key, value in sb_yaml.items():
-    if key not in ["components", "_metadata"]:
-      print(f"{key}: {value}")
+  # Global variables
+  print("global_variables in sb.yaml:")
+  for key, value in sb_yaml.get("global_variables", {}).items():
+    print(f"- {key}: {value}")
   print()
 
-  print(f"Installed components:")
-  for key, value in sb_yaml["components"].items():
-    print(f" - {key}")
-  print()
+  # List of installed components.
+  components_info()
 
 
 @app.command()
@@ -225,17 +285,19 @@ def version():
 
 def main():
   try:
-    print_highlight(f"Solutions Builder (version " +
+    print_highlight("Solutions Builder (version " +
                     typer.style(__version__, fg=typer.colors.CYAN, bold=True) +
                     ")\n")
     app()
     print()
 
   except Exception as e:
-    if os.getenv("DEBUG", False):
+    if DEBUG:
       traceback.print_exc()
     print_error(e)
+    return -1
 
+  return 0
 
 if __name__ == "__main__":
   main()

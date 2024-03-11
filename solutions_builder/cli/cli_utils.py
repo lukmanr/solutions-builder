@@ -14,7 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import os, yaml, typer, subprocess, re
+import os
+import yaml
+import typer
+import subprocess
+import re
 
 
 def confirm(msg, skip=False, default=True):
@@ -104,8 +108,8 @@ def exec_shell(command, working_dir=".", stop_when_error=True, stdout=None):
   exit_status = proc.wait()
 
   if exit_status != 0 and stop_when_error:
-    raise Exception(
-        f"Error when running command: {command} (working_dir={working_dir})")
+    raise RuntimeError(
+        f"Error occurs when running command: {command} (working_dir={working_dir})")
 
   return exit_status
 
@@ -138,8 +142,14 @@ def list_subfolders(path):
   print()
 
 
+def list_component_templates():
+  current_dir = os.path.dirname(__file__)
+  path = current_dir + "/../modules"
+  list_subfolders(path)
+
+
 def check_git_url(url):
-  regex_str = "((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?"
+  regex_str = "((git|ssh|http(s)?)|(git@[\\w\\.]+))(:(//)?)([\\w\\.\\@\\:/\\-~]+)(\\.git)(/)?"
   regex = re.compile(regex_str)
   match = regex.match(url)
   return match is not None

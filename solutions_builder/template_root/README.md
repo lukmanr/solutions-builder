@@ -2,16 +2,16 @@
 
 > This codebase is generated from https://github.com/GoogleCloudPlatform/solutions-builder
 
-## Prerequisite
+## Prerequisites
 
-| Tool                  | Required Version | Installation |
-|-----------------------|------------------|---|
-| Python                | &gt;= 3.8        | |
-| gcloud CLI            | Latest           | https://cloud.google.com/sdk/docs/install |
-| Terraform             | &gt;= v1.3.7     | https://developer.hashicorp.com/terraform/downloads |
-| Skaffold              | &gt;= v2.4.0     | https://skaffold.dev/docs/install/ |
-| Kustomize             | &gt;= v5.0.0     | https://kubectl.docs.kubernetes.io/installation/kustomize/ |
-| solutions-builder CLI | &gt;= v1.13.0    | https://github.com/GoogleCloudPlatform/solutions-builder |
+| Tool                | Required Version | Installation                                                                                                                                                                                        |
+|---------------------|------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `python`            | `>= 3.9`         | [Mac](https://www.python.org/ftp/python/3.9.18/python-3.9.18-macos11.pkg) • [Windows](https://www.python.org/downloads/release/python-3918/) • [Linux](https://docs.python.org/3.9/using/unix.html) |
+| `gcloud` CLI        | `Latest`         | https://cloud.google.com/sdk/docs/install                                                                                                                                                           |
+| `terraform`         | `>= v1.3.7`      | https://developer.hashicorp.com/terraform/downloads                                                                                                                                                 |
+| `solutions-builder` | `>= v1.17.19`    | https://pypi.org/project/solutions-builder/                                                                                                                                                         |
+| `skaffold`          | `>= v2.4.0`      | https://skaffold.dev/docs/install/                                                                                                                                                                  |
+| `kustomize`         | `>= v5.0.0`      | https://kubectl.docs.kubernetes.io/installation/kustomize/                                                                                                                                          |
 
 ## Setup
 
@@ -30,11 +30,23 @@ export PROJECT_ID=<my-project-id>
 gcloud config set project $PROJECT_ID
 ```
 
-Log in to the jump host (Optional but recommended)
+### Check Org policies (Optional)
+Make sure that policies are not enforced (`enforce: false` or `NOT_FOUND`). You must be an organization policy administrator to set a constraint.
+https://console.cloud.google.com/iam-admin/orgpolicies/compute-requireShieldedVm?project=$PROJECT_ID
+https://console.cloud.google.com/iam-admin/orgpolicies/requireOsLogin?project=$PROJECT_ID
 ```
-export ZONE=us-central1-c #<my-zone>
+gcloud resource-manager org-policies disable-enforce constraints/compute.requireOsLogin --project="${PROJECT_ID}"
+gcloud resource-manager org-policies disable-enforce constraints/compute.requireShieldedVm --project="${PROJECT_ID}"
+gcloud resource-manager org-policies delete constraints/compute.vmExternalIpAccess --project="${PROJECT_ID}"
+gcloud resource-manager org-policies delete constraints/iam.allowedPolicyMemberDomains --project="${PROJECT_ID}"
+```
+### Create jump host for the project (Recommended)
+Log in to the jump host
+```
 sb infra apply 0-jumphost
-gcloud compute ssh --zone=$ZONE --tunnel-through-iap jump-host
+export JUMP_HOST_ZONE=$(gcloud compute instances list --format="value(zone)")
+echo Jump host zone is $JUMP_HOST_ZONE
+gcloud compute ssh --zone=$JUMP_HOST_ZONE --tunnel-through-iap jump-host
 ```
 
 Startup script for the just host (takes about 5-10 min)
@@ -46,6 +58,12 @@ ls -l /tmp/jumphost_ready
 sudo journalctl -u google-startup-scripts.service
 ```
 
+Note: For a fresh start, here are the steps to delete/destroy jump host and corresponding resources from project. However, this not clean up any resources that were deployed from the jump host
+```
+gcloud compute instances update jump-host --no-deletion-protection --project="${PROJECT_ID}"
+sb infra destroy 0-jumphost
+```
+### Continue to Cloud Infra and foundation steps
 Initialize the Cloud infra:
 ```
 gcloud auth login
@@ -73,15 +91,11 @@ Follow README files of each microservice to setup:
 sb deploy
 ```
 
-## Destroy
-Turn off deletion protection for the jump host (for `terraform destroy`)
-```
-gcloud compute instances update jump-host --no-deletion-protection
-```
+## Development
 
 Please refer to [DEVELOPMENT.md](docs/DEVELOPMENT.md) for more details on development and code submission.
 
 ## Troubleshoot
 
-Please refer to [TROUBLESHOOT.md](docs/DEVELOPMENT.md) for more details on development and code submission.
+Please refer to [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for any Terraform errors
 

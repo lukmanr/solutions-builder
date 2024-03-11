@@ -1,7 +1,9 @@
 1. [Installation Issues](#InstallationIssues)
+
 ##  1. <a name='InstallationIssues'></a>Installation Issues
 
-- I use a Apple M1 Mac and got errors like below when I ran `terraform init`:
+### 1.1 Apple M1 laptops related errors
+- I use an Apple M1 Mac and got errors like below when I ran `terraform init`:
   ```
   │ Error: Incompatible provider version
   │
@@ -13,11 +15,12 @@
   ```
   - A: Run the following to add support of M1 chip ([reference](https://kreuzwerker.de/en/post/use-m1-terraform-provider-helper-to-compile-terraform-providers-for-mac-m1))
     ```
-    brew install kreuzwerker/taps/m1-terraform-provider-helper
-    m1-terraform-provider-helper activate
-    m1-terraform-provider-helper install hashicorp/template -v v2.2.0
+     brew install kreuzwerker/taps/m1-terraform-provider-helper
+     m1-terraform-provider-helper activate
+     m1-terraform-provider-helper install hashicorp/template -v v2.2.0
     ```
 
+### 1.2 `gcloud` CLI is stuck with an old project ID
 - I ran terraform and other `gcloud` commands, it's stuck with old project ID.
   - A: First, check if gcloud is authorized correctly.
     ```
@@ -29,7 +32,7 @@
     *    jonchen@google.com
     ```
 
-    If not, relogin to gcloud.
+    If not, re-authenticate to gcloud.
     ```
     gcloud auth login
     ```
@@ -79,7 +82,8 @@
     export GOOGLE_APPLICATION_CREDENTIALS=<credential-json>
     ```
 
-- I ran into the Terraform error for acquiring the state lock:
+### 1.3 Terraform error while acquiring the state lock
+- I ran into the Terraform error while acquiring the state lock:
   ```
   │ Error: Error acquiring the state lock
   │
@@ -100,8 +104,28 @@
   ╵
   ```
 
-  In each terraform `stage` folder, run the folllowing:
+  - A: In each terraform `stage` folder, run the following:
   ```
   cd terraform/stages/foundation # foundation, gke or cloudrun.
   terraform force-unlock <terraform-lock-id>
+  ```
+
+### 1.4 Terraform error when creating the jump host in `0-jumphost` stage
+
+- I ran into the following error when running `sb infra apply 0-jumphost`:
+  ```
+  │ Error: Error creating instance: googleapi: Error 412: Constraint constraints/compute.requireShieldedVm violated for project projects/jonchen-css-1004. Secure Boot is not enabled in the 'shielded_instance_config' field. See https://cloud.google.com/resource-manager/docs/organization-policy/org-policy-constraints for more information., conditionNotMet
+  │
+  │   with google_compute_instance.jump_host,
+  │   on main.tf line 104, in resource "google_compute_instance" "jump_host":
+  │  104: resource "google_compute_instance" "jump_host" {
+  │
+  ╵
+  Error when running command:  terraform apply   (working_dir=./terraform/stages/0-jumphost)
+  ```
+
+  - A: Run the following to update the organization policies (You will need Org Policy Admin IAM role.)
+  ```
+  export ORGANIZATION_ID="$(gcloud projects get-ancestors $PROJECT_ID | grep organization | cut -f1 -d' ')"
+  gcloud resource-manager org-policies delete constraints/compute.requireShieldedVm --organization=$ORGANIZATION_ID
   ```

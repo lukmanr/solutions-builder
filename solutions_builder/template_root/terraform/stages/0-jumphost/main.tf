@@ -32,22 +32,8 @@ provider "google" {
 locals {
   services = [
     "compute.googleapis.com",
+    "orgpolicy.googleapis.com"
   ]
-
-  org_policies_disabled = [
-    "compute.requireShieldedVm",
-    "compute.requireOsLogin",
-  ]
-}
-
-resource "google_project_organization_policy" "disable_org_policies" {
-  for_each   = toset(local.org_policies_disabled)
-  constraint = each.value
-  project    = var.project_id
-
-  boolean_policy {
-    enforced = false
-  }
 }
 
 resource "google_project_service" "project-apis" {
@@ -66,12 +52,12 @@ resource "time_sleep" "wait_60_seconds" {
 resource "google_compute_network" "vpc" {
   depends_on              = [time_sleep.wait_60_seconds]
   project                 = var.project_id
-  name                    = "jumphost-vpc"
+  name                    = "jump-vpc"
   auto_create_subnetworks = false
 }
 
 resource "google_compute_subnetwork" "subnet" {
-  name          = "jumphost-vpc-subnet"
+  name          = "jump-vpc-subnet"
   region        = var.region
   network       = google_compute_network.vpc.name
   ip_cidr_range = "10.0.0.0/24"
@@ -81,7 +67,7 @@ resource "google_compute_disk" "default" {
   depends_on = [time_sleep.wait_60_seconds]
   name       = "disk-data"
   type       = "pd-balanced"
-  zone       = var.zone
+  zone       = var.jump_host_zone
   size       = var.disk_size_gb
 }
 
@@ -101,9 +87,9 @@ resource "google_compute_firewall" "allow_ssh" {
 module "cloud-nat" {
   source            = "terraform-google-modules/cloud-nat/google"
   version           = "~> 1.2"
-  name              = format("%s-%s-nat", var.project_id, var.region)
+  name              = format("%s-%s-jump-nat", var.project_id, var.region)
   create_router     = true
-  router            = format("%s-%s-router", var.project_id, var.region)
+  router            = format("%s-%s-jump-router", var.project_id, var.region)
   project_id        = var.project_id
   region            = var.region
   network           = google_compute_network.vpc.self_link
@@ -116,9 +102,9 @@ data "template_file" "startup_script" {
 }
 
 resource "google_compute_instance" "jump_host" {
-  depends_on                = [google_project_organization_policy.disable_org_policies]
+  depends_on                = [time_sleep.wait_60_seconds]
   project                   = var.project_id
-  zone                      = var.zone
+  zone                      = var.jump_host_zone
   name                      = "jump-host"
   machine_type              = var.machine_type
   deletion_protection       = true
@@ -128,6 +114,7 @@ resource "google_compute_instance" "jump_host" {
   boot_disk {
     initialize_params {
       image = "ubuntu-os-cloud/ubuntu-2004-focal-v20230907"
+      size = 50
     }
   }
 

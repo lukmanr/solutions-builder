@@ -40,20 +40,3 @@ variable "cluster_name" {
   type    = string
   default = "main-cluster"
 }
-
-variable "kubernetes_version" {
-  type        = string
-  description = "Kubernetes version. See https://cloud.google.com/kubernetes-engine/docs/release-notes-stable"
-}
-
-variable "node_machine_type" {
-  type        = string
-  description = "VM machine time"
-  default     = "n1-standard-4"
-}
-
-variable "private_cluster" {
-  type        = bool
-  description = "Whether to use private nodes"
-  default     = true
-}

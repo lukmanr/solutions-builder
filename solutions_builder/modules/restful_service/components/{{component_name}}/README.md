@@ -1,18 +1,8 @@
-# RESTful API microservice for {{data_model_plural | capitalize}} data model.
+# {{component_name}} Microservice
 
-## Deploy
+## Development
 
-Use Solutions Builder CLI to deploy:
-```
-st deploy . --component {{component_name}}
-```
-
-Alternatively, deploy with Skaffold commandline:
-```
-skaffold run -p default -m {{component_name}}  --default-repo="gcr.io/{{project_id}}"
-```
-
-## Run locally
+### Run locally
 
 Create a virtualenv and install dependencies.
 ```
@@ -21,9 +11,35 @@ python -m virtualenv .venv
 pip install -r requirements.txt
 ```
 
+If this service depends on **components/common**, run the following
+to install all dependencies from common.
+
+```
+pip install -r ../common/requirements.txt
+```
+
+Run `main.py` locally.
+
+```
+cd components/{{component_name}}/src
+PYTHONPATH=../common/src python main.py
+```
+
+### Deploy to remote GKE cluster with livereload
+
+Use Solutions Builder CLI to deploy:
+```
+st deploy . -m {{component_name}} --dev
+```
+
+Alternatively, deploy with Skaffold command:
+```
+skaffold dev -p default -m {{component_name}}  --default-repo="gcr.io/{{project_id}}"
+```
+
 ## Test
 
-Run Firebase emulator in a separate terminial.
+If this microservice uses Firestore, run Firebase emulator in a separate terminial.
 ```
 firebase emulators:start --only firestore --project fake-project
 ```
@@ -38,27 +54,17 @@ Run pytest
 pytest
 ```
 
-## GKE configuration
+## Deploy
 
-### Deploy to GKE cluster
+### Deploy to remote GKE cluster or Cloud Run
 
-Connect to the GKE cluster
+Use Solutions Builder CLI to deploy:
 ```
-gcloud container clusters get-credentials main-cluster --region {{gcp_region}} --project {{project_id}}
-```
-
-Deploy with Skaffold using `gke` profile.
-
-```
-skaffold run -p gke -m {{component_name}}  --default-repo="gcr.io/{{project_id}}"
+st deploy . -m {{component_name}}
 ```
 
-## Cloud Run configuration
-
-### Update Cloud Run service to accept unauthenticated traffic
-
+Alternatively, deploy with Skaffold command:
 ```
-gcloud run services add-iam-policy-binding {{resource_name}} \
-  --member="allUsers" \
-  --role="roles/run.invoker"
+skaffold run -p default -m {{component_name}}  --default-repo="gcr.io/{{project_id}}"
 ```
+
