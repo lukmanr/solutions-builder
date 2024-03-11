@@ -43,7 +43,7 @@ def project_id(
   assert old_project_id, "project_id does not exist in sb.yaml"
 
   confirm(
-      f"This will replace all project-id '{old_project_id}' to '{new_project_id}' in folder '{solution_path}'. "
+      f"This will replace all mentions of project id '{old_project_id}' to '{new_project_id}' in folder '{solution_path}'. "
       + "Continue?",
       skip=yes)
 
@@ -86,6 +86,6 @@ def project_id(
       file.write(filedata)
 
   print(
-      f"\nReplaced project_id from '{old_project_id}' to '{new_project_id}'.")
+      f"\nReplaced project id '{old_project_id}' with '{new_project_id}'.")
   print(
-      f"Replaced project_number from '{old_project_number}' to '{new_project_number}'.")
+      f"Replaced project number from '{old_project_number}' to '{new_project_number}'.")
